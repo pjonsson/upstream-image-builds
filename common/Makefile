@@ -42,14 +42,17 @@ IMAGE_BUILD_DIR ?= $(MAKEFILE_DIR)/..
 
 COSIGN_CMD ?= true
 
+sign-image:
+	$(eval DIGEST := $(shell docker inspect $(IMAGE_VAR):$(IMAGE_REV) | jq -r '.[].Id'))
+	$(Q)$(COSIGN_CMD) sign --yes $(IMAGE_VAR):$(IMAGE_REV)@$(DIGEST)
+
 # Builds an upstream image. Will push image if make is invoked with:
 # make PUSH_OPTION="--push" ..
 build-upstream-image: IMAGE_VAR ?= $(CI_REGISTRY)/$(CI_REGISTRY_BASE_PATH)/$(ORGANIZATION_NAME)-$(IMAGE_BASE_NAME)
 build-upstream-image:
 	$(Q)cd $(IMAGE_BUILD_DIR) && \
           docker build $(PUSH_OPTION) $(DOCKER_ARGS) $(DOCKER_EXTRA_UPSTREAM_ARGS) $(DOCKER_PROVENANCE_FLAGS) --build-arg BUILDKIT_INLINE_CACHE=1 --cache-from $(IMAGE_VAR):$(IMAGE_REV) --tag $(IMAGE_VAR):$(IMAGE_REV) --file $(DOCKERFILE) .
-	$(eval DIGEST := $(shell docker inspect $(IMAGE_VAR):$(IMAGE_REV) | jq -r '.[].Id'))
-	$(Q)$(COSIGN_CMD) sign --yes $(IMAGE_VAR):$(IMAGE_REV)@$(DIGEST)
+	$(Q)$(MAKE) IMAGE_VAR=$(IMAGE_VAR) IMAGE_REV=$(IMAGE_REV) sign-image
 
 PUSH_CMD ?= true
 
@@ -61,8 +64,7 @@ build-gdal-upstream-image:
           $(IMAGE_REV_PREFIX)/build.sh $(DOCKER_ARGS) --platform linux/amd64 --tag $(IMAGE_REV)
 	$(Q)$(PUSH_CMD) tag ghcr.io/osgeo/gdal:$(IMAGE_REV_PREFIX)-$(IMAGE_REV)-amd64 $(IMAGE_VAR):$(IMAGE_REV_PREFIX)-$(IMAGE_REV)
 	$(Q)$(PUSH_CMD) push $(IMAGE_VAR):$(IMAGE_REV_PREFIX)-$(IMAGE_REV)
-	$(eval DIGEST := $(shell docker inspect $(IMAGE_VAR):$(IMAGE_REV_PREFIX)-$(IMAGE_REV) | jq -r '.[].Id'))
-	$(Q)$(COSIGN_CMD) sign --yes $(IMAGE_VAR):$(IMAGE_REV_PREFIX)-$(IMAGE_REV)@$(DIGEST)
+	$(Q)$(MAKE) IMAGE_VAR=$(IMAGE_VAR) IMAGE_REV=$(IMAGE_REV_PREFIX)-$(IMAGE_REV) sign-image
 
 UPSTREAM_REPO_NAME ?= not-set-upstream-repo-name
 
